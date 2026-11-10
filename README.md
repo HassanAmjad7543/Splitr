@@ -4,7 +4,7 @@ A Next.js + Supabase expense splitter for friend groups, roommates, and trips.
 One organizer logs expenses; everyone else gets a read-only share link. No
 account required.
 
-🔗 **Live:** https://your-url.vercel.app
+🔗 **Live:** https://splitr-rho-rust.vercel.app
 📸 **Screenshot:** _[embed a hero shot here]_
 
 ## Why
