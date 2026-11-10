@@ -69,6 +69,27 @@ describe("settle", () => {
     expectFullySettled(balances, txs);
   });
 
+  it("matches the README's caveat example: greedy uses 4 transfers where 3 would do", () => {
+    // Sara/Hamza cancel exactly, and Ali's +700 = Ayesha 400 + Bilal 300, so the
+    // optimum is 3 transfers. Greedy doesn't look for those subgroups, so it
+    // takes 4 (still within the N − 1 bound). Documented as a known trade-off.
+    const balances: Balance[] = [
+      { memberId: "Ali", amount: 70_000 },
+      { memberId: "Sara", amount: 60_000 },
+      { memberId: "Hamza", amount: -60_000 },
+      { memberId: "Ayesha", amount: -40_000 },
+      { memberId: "Bilal", amount: -30_000 },
+    ];
+    const txs = settle(balances);
+    expect(txs).toEqual([
+      { from: "Hamza", to: "Ali", amount: 60_000 },
+      { from: "Ayesha", to: "Sara", amount: 40_000 },
+      { from: "Bilal", to: "Sara", amount: 20_000 },
+      { from: "Bilal", to: "Ali", amount: 10_000 },
+    ]);
+    expectFullySettled(balances, txs);
+  });
+
   it("returns no transactions when everyone is already square", () => {
     expect(settle([])).toEqual([]);
     expect(

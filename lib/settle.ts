@@ -30,8 +30,9 @@
  * If, say, A is +300 and B is −300 inside a bigger group, the best plan settles
  * that pair separately and saves a transfer. Finding the absolute minimum in
  * general is NP-hard (it's a subset-sum style partitioning problem). Greedy
- * stays within N − 1, runs instantly, and for a dinner group it's either
- * optimal or one transfer off.
+ * stays within N − 1, runs instantly, and for real friend groups, where
+ * balances rarely cancel out exactly, it usually finds the minimum anyway.
+ * The README walks through an example where it doesn't.
  *
  * Cost: we re-sort both piles every round. N is the size of a friend group,
  * so O(N² log N) is nothing — a heap would be premature.

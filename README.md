@@ -20,7 +20,7 @@ anything. This app flips the model: one account for the organizer, name-only
 - Add expenses with equal / exact / percentage splits
 - Edit and delete expenses; add, rename and remove members
 - Net balance per member
-- Minimum-transactions settlement plan
+- Settle-up plan that nets everything out (never more than N − 1 payments)
 - Unique shareable read-only link per member (copy, send on WhatsApp, or reset)
 - Dark / light mode
 - Fully responsive, mobile-first (the add-expense form is a bottom sheet on phones)
@@ -32,30 +32,162 @@ Supabase (Postgres + Auth + RLS) · Vercel · Vitest
 
 ## The Settlement Algorithm
 
-Given a list of expenses with payers and beneficiaries, the app computes a
-short list of member-to-member transfers that settles everyone up.
+> **The question:** after a trip full of shared bills, what's the shortest list
+> of "X pays Y" transfers that leaves everyone even?
 
-**Approach:** compute each member's net balance (what they paid minus what
-they owe), split members into creditors and debtors, then greedily match the
-largest debtor with the largest creditor until both piles are empty. Every
-transfer takes at least one person to zero, so N members with non-zero
-balances never need more than N − 1 transfers.
+The code is in [`lib/settle.ts`](lib/settle.ts), about 30 lines plus
+comments. Here's how it works.
 
-**Example.** Alice pays Rs 1,500 for dinner, Bob Rs 900 for petrol, Charlie
-Rs 600 for parking, each split three ways. Paying back each share separately
-takes six transfers. Netting gives Alice +500, Bob −100 and Charlie −400, which
-settles in two: _Charlie pays Alice 400, Bob pays Alice 100_.
+### 1. The problem
 
-**Caveat:** N − 1 is optimal unless some subgroup's balances cancel out on
-their own (say A is +300 and B is −300 inside a bigger group). Finding the
-true minimum in general is NP-hard, because it's a subset-sum partitioning
-problem. Greedy runs instantly and is optimal, or one transfer off, for
-realistic friend groups.
+Three friends go to Islamabad for the weekend. Each bill is split equally
+three ways:
 
-See [`lib/settle.ts`](lib/settle.ts) for the implementation and
-[`tests/settle.test.ts`](tests/settle.test.ts) for the tests (the worked
-example, a 5-person case, all-zero, N = 2, and 500 random groups checked
-against the N − 1 bound).
+| Expense | Paid by | Amount | Each person's share |
+|---|---|---:|---:|
+| Dinner | Alice | Rs 1,500 | Rs 500 |
+| Petrol | Bob | Rs 900 | Rs 300 |
+| Parking | Charlie | Rs 600 | Rs 200 |
+
+The naive way is to pay back every share to whoever paid it. That's **six
+transfers**, and some of them cancel each other out (Alice owes Bob 300 while
+Bob owes Alice 500):
+
+```mermaid
+flowchart LR
+    B[Bob] -- 500 --> A[Alice]
+    C[Charlie] -- 500 --> A
+    A -- 300 --> B
+    C -- 300 --> B
+    A -- 200 --> C
+    B -- 200 --> C
+```
+
+### 2. Net everything into one number per person
+
+Who owes whom on which bill doesn't matter. All that matters is each person's
+**net balance**:
+
+```
+net = (total they paid) − (total of their shares)
+```
+
+| | Paid | Shares (500 + 300 + 200) | **Net** | Meaning |
+|---|---:|---:|---:|---|
+| Alice | 1,500 | 1,000 | **+500** | gets back 500 |
+| Bob | 900 | 1,000 | **−100** | owes 100 |
+| Charlie | 600 | 1,000 | **−400** | owes 400 |
+| **Sum** | | | **0** | |
+
+The balances **always sum to zero**, because every rupee somebody paid is owed
+by somebody. `settle()` checks this first and throws if it fails, so a rounding
+bug anywhere upstream gets caught here instead of producing a wrong plan.
+
+### 3. Greedy matching: biggest debtor pays biggest creditor
+
+Split people into **creditors** (net > 0) and **debtors** (net < 0); anyone at
+zero is already done. Then repeat:
+
+1. Take the debtor who owes the most and the creditor who is owed the most.
+2. The debtor pays `min(what they owe, what the creditor is owed)`.
+3. Whoever reaches zero leaves their pile.
+
+| Step | Creditors | Debtors | Transfer |
+|---|---|---|---|
+| start | Alice +500 | Charlie −400, Bob −100 | |
+| 1 | Alice +100 | Bob −100 | **Charlie pays Alice 400** |
+| 2 | (empty) | (empty) | **Bob pays Alice 100** |
+
+**Six transfers become two:**
+
+```mermaid
+flowchart LR
+    C[Charlie] -- Rs 400 --> A[Alice]
+    B[Bob] -- Rs 100 --> A
+```
+
+The core loop in TypeScript (all amounts are integer paisa):
+
+```ts
+while (creditors.length > 0 && debtors.length > 0) {
+  creditors.sort((a, b) => b.amount - a.amount || a.memberId.localeCompare(b.memberId));
+  debtors.sort((a, b) => a.amount - b.amount || a.memberId.localeCompare(b.memberId));
+
+  const creditor = creditors[0];
+  const debtor = debtors[0];
+  const payment = Math.min(creditor.amount, -debtor.amount);
+
+  transactions.push({ from: debtor.memberId, to: creditor.memberId, amount: payment });
+
+  creditor.amount -= payment;
+  debtor.amount += payment;
+  if (creditor.amount === 0) creditors.shift();
+  if (debtor.amount === 0) debtors.shift();
+}
+```
+
+### 4. Why it works
+
+- **It always finishes.** Every transfer takes *at least one* person to exactly
+  zero, so the piles keep shrinking.
+- **At most N − 1 transfers.** With N people who don't start at zero, each
+  transfer removes at least one of them. The last transfer always removes two
+  (debtor and creditor hit zero together, because the totals match), so
+  there are never more than N − 1 transfers.
+- **Everyone ends at exactly zero.** Payments are integers, so nothing is lost
+  to rounding.
+- **Same input, same plan.** Ties are broken by member ID, so refreshing the
+  page never shuffles the plan.
+- **Fast enough.** Sorting every round is O(N² log N). N is the size of a
+  friend group, so this runs in microseconds; a heap would be premature.
+
+### 5. The honest caveat: greedy is not always optimal
+
+Greedy guarantees **at most N − 1** transfers, but sometimes fewer are possible.
+That happens when a smaller subgroup's balances cancel out on their own:
+
+| | Net |
+|---|---:|
+| Ali | +700 |
+| Sara | +600 |
+| Hamza | −600 |
+| Ayesha | −400 |
+| Bilal | −300 |
+
+**Greedy (4 transfers):** Hamza → Ali 600, Ayesha → Sara 400, Bilal → Sara 200,
+Bilal → Ali 100.
+
+**Optimal (3 transfers):** Sara and Hamza cancel exactly (+600 / −600), and
+Ali's +700 is exactly Ayesha's 400 plus Bilal's 300:
+
+```mermaid
+flowchart LR
+    H[Hamza] -- 600 --> S[Sara]
+    Y[Ayesha] -- 400 --> A[Ali]
+    L[Bilal] -- 300 --> A
+```
+
+In general the true minimum is **N minus the largest number of groups the
+balances can be split into, where each group sums to zero**. Finding that
+partition is a subset-sum style problem, which is **NP-hard**. So the trade-off
+is deliberate: greedy is simple, instant, provably bounded by N − 1, and for
+real friend groups (where balances rarely cancel out exactly) it usually finds
+the minimum anyway. An exact solver over all subsets (O(3ᴺ)) would be possible
+for small groups. It's on the roadmap, not in v1.
+
+### 6. Tests
+
+[`tests/settle.test.ts`](tests/settle.test.ts) covers:
+
+- the Alice / Bob / Charlie example above (exactly two transfers)
+- a 5-person group (≤ 4 transfers)
+- everyone already at zero (no transfers)
+- two people (always exactly one transfer)
+- the caveat example above (greedy takes exactly the 4 transfers shown)
+- balances that don't sum to zero (throws)
+- input is never mutated, and the output doesn't depend on input order
+- **500 random groups** of 2–13 people: every plan settles everyone to exactly
+  zero and stays within N − 1 transfers
 
 ## Money handling
 
@@ -187,7 +319,7 @@ tests/               Vitest unit tests
 
 ## Roadmap (v1.1)
 
-Multiple currencies, receipt photos, recurring expenses, "I paid" settle-up
+Exact minimum-transfer solver for small groups, multiple currencies, receipt photos, recurring expenses, "I paid" settle-up
 confirmations, payment links (Easypaisa / JazzCash / Raast), CSV export,
 co-organizers, Urdu localization.
 
