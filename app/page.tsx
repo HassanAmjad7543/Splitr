@@ -2,6 +2,7 @@ import { ArrowRight, Link2, ListChecks, UserRound } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { LegalFooter } from "@/components/legal-page";
 import { Money } from "@/components/money";
 import { SiteHeader } from "@/components/site-header";
 import { Button } from "@/components/ui/button";
@@ -55,9 +56,7 @@ export default async function HomePage() {
           </div>
         </section>
       </main>
-      <footer className="border-t py-6 text-center text-sm text-muted-foreground">
-        {site.name} · {site.tagline}
-      </footer>
+      <LegalFooter />
     </div>
   );
 }
