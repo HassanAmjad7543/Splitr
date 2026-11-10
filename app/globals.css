@@ -1,0 +1,104 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * Design tokens (shadcn/ui conventions).
+ * One accent — emerald — reads as "money / settled". Balance colours are
+ * semantic and used the same way on every page:
+ *   positive  = is owed money / settled
+ *   negative  = owes money
+ *   muted     = zero / inactive
+ */
+:root {
+  --radius: 0.75rem;
+  --background: oklch(0.985 0.002 160);
+  --foreground: oklch(0.18 0.01 160);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.18 0.01 160);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.18 0.01 160);
+  --primary: oklch(0.596 0.145 163.225); /* emerald-600 */
+  --primary-foreground: oklch(0.985 0.01 160);
+  --secondary: oklch(0.955 0.005 160);
+  --secondary-foreground: oklch(0.22 0.01 160);
+  --muted: oklch(0.955 0.005 160);
+  --muted-foreground: oklch(0.5 0.01 160);
+  --accent: oklch(0.95 0.03 163);
+  --accent-foreground: oklch(0.3 0.08 163);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.91 0.006 160);
+  --input: oklch(0.91 0.006 160);
+  --ring: oklch(0.596 0.145 163.225);
+  --positive: oklch(0.527 0.137 162.48); /* emerald-700 */
+  --negative: oklch(0.577 0.215 17.38); /* rose-600 */
+}
+
+.dark {
+  --background: oklch(0.155 0.006 160);
+  --foreground: oklch(0.96 0.005 160);
+  --card: oklch(0.195 0.008 160);
+  --card-foreground: oklch(0.96 0.005 160);
+  --popover: oklch(0.205 0.008 160);
+  --popover-foreground: oklch(0.96 0.005 160);
+  --primary: oklch(0.696 0.17 162.48); /* emerald-500 */
+  --primary-foreground: oklch(0.16 0.03 163);
+  --secondary: oklch(0.25 0.008 160);
+  --secondary-foreground: oklch(0.96 0.005 160);
+  --muted: oklch(0.25 0.008 160);
+  --muted-foreground: oklch(0.68 0.01 160);
+  --accent: oklch(0.27 0.04 163);
+  --accent-foreground: oklch(0.88 0.08 163);
+  --destructive: oklch(0.65 0.21 22);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 14%);
+  --ring: oklch(0.696 0.17 162.48);
+  --positive: oklch(0.765 0.177 163.223); /* emerald-400 */
+  --negative: oklch(0.712 0.194 13.428); /* rose-400 */
+}
+
+@theme inline {
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-positive: var(--positive);
+  --color-negative: var(--negative);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+  /* Money is data, not prose: monospaced, tabular digits so decimals line up. */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+}
